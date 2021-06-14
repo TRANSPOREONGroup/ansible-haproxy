@@ -1,58 +1,63 @@
-Ansible HAproxy (OpenStack ready)
-=========
+# Ansible HAproxy (OpenStack ready)
 
-
-[![Build Status](https://travis-ci.org/uoi-io/ansible-haproxy.svg?branch=master)](https://travis-ci.org/uoi-io/ansible-haproxy) [![Ansible Galaxy](https://img.shields.io/badge/galaxy-uoi.haproxy-green.svg?style=flat)](https://galaxy.ansible.com/uoi-io/haproxy/)
+[![Build Status](https://travis-ci.com/uoi-io/ansible-haproxy.svg?branch=master)](https://travis-ci.com/uoi-io/ansible-haproxy) [![Ansible Galaxy](https://img.shields.io/badge/galaxy-uoi.haproxy-green.svg?style=flat)](https://galaxy.ansible.com/uoi-io/haproxy/)
 
 This role provides support for the installation of HAproxy on current distributions:
 
- - CentOS **7.x**
- - RedHat **7.x**
- - Fedora **29**
- - Ubuntu **14.xx** / **15.xx** / **16.xx** / **18.04**
- - Debian **7.x** / **8.x** / **9.x**
+- CentOS **7.x** / **8.x**
+- RedHat **7.x**
+- Fedora **32** / **33**
+- Debian **9.x** / **10.x**
+- Ubuntu **18.04** / **20.04**
 
 The role allows you to configure multiple sections of HAproxy:
- 
- - Global section
- - Default section
- - Listen section
- - Frontend section
- - Backend section
- - Peer section
- - Stats section
 
-Requirements
-------------
+- Global section
+- Default section
+- Listen section
+- Frontend section
+- Backend section
+- Peer section
+- Stats section
 
-This role requires at least HAproxy **1.5** *(SSL native support)* and Ansible **2.x**.
+## Requirements
 
-Role Variables
---------------
+This role requires at least HAproxy **1.5** _(SSL native support)_ and Ansible **2.8**.
 
-There are no variables in the ``vars`` directory, all variables can be override via the playbook.
+## Role Variables
 
-Empty variable like ``haproxy_global_uid`` wills appears in the ``/etc/haproxy/haproxy.cfg`` only if a value is define.
+There are no variables in the `vars` directory, all variables can be override via the playbook.
 
-Variable like ``haproxy_global_stats: []`` are arrays, in this example, the array is empty. This variable can be declare in two different ways:
-```
-haproxy_global_stats: [ show-legends, show-node, refresh 20s]
+Empty variable like `haproxy_global_uid` wills appears in the `/etc/haproxy/haproxy.cfg` only if a value is define.
+
+Variable like `haproxy_global_stats: []` are arrays, in this example, the array is empty. This variable can be declare in two different ways:
+
+```yaml
 haproxy_global_stats:
   - show-legends
   - show-node
   - refresh 20s
 ```
 
-```
+```yaml
 # file: roles/haproxy/defaults/main.yml
 # Sysctl
 haproxy_bind_nonlocal_ip: true
 haproxy_ip_forward: true
 
 # Common
+haproxy_mode: system  # or docker
 haproxy_firewalld: true
 haproxy_selinux: true
 haproxy_apt_backports: false
+# default value for macOS & Docker; overridden in `vars/{{ ansible_os_family }}.yml`
+haproxy_errors_directory: /usr/local/etc/haproxy/errors
+
+# Package customizations
+haproxy_package: haproxy
+haproxy_service: haproxy
+haproxy_bin: haproxy
+haproxy_config: /etc/haproxy/haproxy.cfg
 
 # Firewall
 haproxy_fw_ports:
@@ -77,8 +82,9 @@ haproxy_global_ulimit_n:
 haproxy_global_logs:
   - 127.0.0.1    local0 debug
 haproxy_global_daemon: true
-haproxy_global_nbproc: 8
-haproxy_global_cpu_maps: [ 1 0, 2 1, 3 2, 4 3, 5 4, 6 5, 7 6, 8 7 ]
+# nbproc is deprecated. Will be removed in version 2.5
+# haproxy_global_nbproc: 8
+# haproxy_global_cpu_maps: [ 1 0, 2 1, 3 2, 4 3, 5 4, 6 5, 7 6, 8 7 ]
 haproxy_global_tunes:
   - tune.ssl.default-dh-param: 2048
 
@@ -102,15 +108,19 @@ haproxy_default_timeouts:
   - check 10s
 haproxy_default_balance:
 haproxy_default_errorfiles:
-  - 400 {{ haproxy_errors_directory }}/400.http
-  - 403 {{ haproxy_errors_directory }}/403.http
+  - "400 {{ haproxy_errors_directory }}/400.http"
+  - "403 {{ haproxy_errors_directory }}/403.http"
 haproxy_default_http_check:
 haproxy_default_monitor_uri:
+
+# Userlist
+haproxy_userlist:
 
 # Stats
 haproxy_stats: true
 haproxy_stats_address: '*'
 haproxy_stats_port: 9001
+haproxy_stats_ssl: false
 haproxy_stats_user: haproxy-stats
 haproxy_stats_password: B1Gp4sSw0rD!!
 haproxy_stats_uri: /
@@ -125,19 +135,38 @@ haproxy_ssl_certificate: /etc/ssl/uoi.io/uoi.io.pem
 haproxy_ssl_options: no-sslv3 no-tls-tickets force-tlsv12
 haproxy_ssl_ciphers: AES128+EECDH:AES128+EDH
 haproxy_ssl: 'ssl crt {{ haproxy_ssl_certificate }} ciphers {{ haproxy_ssl_ciphers }} {{ haproxy_ssl_options }}'
+
+# Docker
+# see more details in `tasks/docker.yml` and https://docs.ansible.com/ansible/latest/collections/community/general/docker_container_module.html
+haproxy_docker_name: "haproxy"
+haproxy_docker_image: "haproxy:alpine"
+haproxy_docker_network_mode: default
+haproxy_docker_network_name: "haproxy"
+haproxy_docker_pull: true
+haproxy_docker_recreate: false
+haproxy_docker_ports:
+  - "8443:8443"
+  - "{{ haproxy_stats_port }}:{{ haproxy_stats_port }}"
+haproxy_docker_sysctls:
+  net.ipv4.ip_nonlocal_bind: "{{ 1 if haproxy_bind_nonlocal_ip|bool else 0 }}"
+  net.ipv4.ip_forward: "{{ 1 if haproxy_ip_forward|bool else 0 }}"
+  net.core.somaxconn: 4096
+  net.ipv4.tcp_syncookies: 1
+haproxy_docker_ulimits:
+  - "nofile:262144:262144"
+haproxy_docker_volumes:
+  - {{ haproxy_config }}+":/usr/local/etc/haproxy/haproxy.cfg:ro"
 ```
 
-Dependencies
-------------
+## Dependencies
 
 None
 
-Example Playbook
-----------------
+## Example Playbook
 
-The below examples show you how to define ``frontend``, ``backend``, ``listen``, ``peer``.
+The below examples show you how to define `frontend`, `backend`, `listen`, `peer`.
 
-```
+```yaml
 # Frontend
 haproxy_frontend:
   - dashboard_cluster:
@@ -155,10 +184,12 @@ haproxy_frontend:
         - 1
       use_backends:
         - static if url_static
-      capture: request header Host len 64
-      capture: request header X-Forwarded-For len 64
+      capture:
+        - request header Host len 64
+        - request header X-Forwarded-For len 64
 ```
-```
+
+```yaml
 # Backend
 haproxy_backend:
   - dashboard_backend:
@@ -178,7 +209,8 @@ haproxy_backend:
         - cnd02 10.0.0.71:8080 check
         - cnd03 10.0.0.71:8080 check
 ```
-```
+
+```yaml
 # Listen
 haproxy_listen:
   - dashboard_cluster:
@@ -192,7 +224,8 @@ haproxy_listen:
       options: [ tcpka, httpchk, tcplog ]
       http-check: GET /auth/login
       cookie: SERVERID insert indirect nocache
-      capture: cookie SERVERID len 32
+      capture:
+        - cookie SERVERID len 32
       timeouts:
         - client 90m
         - server 90m
@@ -216,7 +249,8 @@ haproxy_listen:
         - ctrl02 10.0.0.63:9696 check inter 2000 rise 2 fall 5
         - ctrl03 10.0.0.64:9696 check inter 2000 rise 2 fall 5
 ```
-```
+
+```yaml
 # Peer
 haproxy_peer:
   - remote_peers:
@@ -226,26 +260,99 @@ haproxy_peer:
         - lb225 10.0.0.225:1024
 ```
 
-Testing
--------
+### Docker usage example
 
-This role is using [ansible molecule](https://molecule.readthedocs.io/).
-You'll just need to install molecule via pip and run it.
-Currently the molecule configuration is based on the docker driver.
+Here is a short example how to use the role in another playbook and run HAProxy in Docker.
 
-```console
-$ apt/yum install docker
-$ systemctl start docker
-$ pip install docker molecule
-$ molecule test
+```yaml
+# site.yml
+- hosts: haproxy
+  name: HAProxy load balancer
+  tags:
+    - all
+    - haproxy
+  # can be included either via `role` or `include_role`
+  # roles:
+  #   - uoi-io.haproxy
+  tasks:
+    - include_role:
+        name: uoi-io.haproxy
 ```
 
-License
--------
+```yaml
+# (group_vars|environments/<my env>/group_vars/haproxy.yml)
+haproxy_mode: docker
+haproxy_config: "{{ docker_persistent_path }}/haproxy/haproxy.cfg"
+haproxy_firewalld: false
+haproxy_selinux: false
+# Global
+haproxy_global_chroot: ""
+# SSL
+haproxy_ssl_certificate: /usr/local/etc/haproxy/ssl/haproxy.crt
+# Frontend
+haproxy_frontend:
+  # ... frontend definition
+# Backend
+haproxy_backend_checks: "check inter 2000 rise 2 fall 5"
+haproxy_backend:
+  - my_backend:
+      # ... backend definition
+      # example that hosts can be dinamically linked based on another group
+      servers: |-
+        {%- set _list = [] %}
+        {%- for _host in groups['MY_BACKEND_GROUP'] %}
+          {%- set _list = _list.append(_host.split('.')[0] ~ ' ' ~ _host ~ ':' ~ MY_SERVICE_PORT ~ ' ' ~ haproxy_backend_checks) %}
+        {%- endfor %}
+        {{- _list }}
+# Docker
+haproxy_docker_ports:
+  - "6443:6443"
+  - "{{ haproxy_stats_port }}:{{ haproxy_stats_port }}"
+# haproxy_docker_volumes: []
+haproxy_docker_volumes:
+  - "{{ haproxy_config }}:/usr/local/etc/haproxy/haproxy.cfg:ro"
+  - "{{ docker_persistent_path }}/haproxy/haproxy.key:/usr/local/etc/haproxy/ssl/haproxy.crt.key:ro"
+  - "{{ docker_persistent_path }}/haproxy/haproxy.crt:/usr/local/etc/haproxy/ssl/haproxy.crt:ro"
+```
+
+## RedHat based repository
+
+If you have own repository with HAProxy, you can install repo file.
+Next example will add repository with HAProxy 2 for CentOS 8
+
+```
+# Repository
+haproxy_repo_yum:
+  - name: haproxy
+    description: HAProxy 2 repository - $basearch
+    baseurl: https://download.copr.fedorainfracloud.org/results/pzinchuk/haproxy/epel-8-$basearch/
+    priority: 1
+    gpgcheck: true
+    file: haproxy
+    repo_gpgcheck: false
+    skip_if_unavailable: true
+    gpgkey: https://download.copr.fedorainfracloud.org/results/pzinchuk/haproxy/pubkey.gpg
+    enabled: true
+    state: present
+```
+
+## Testing
+
+This role is using [ansible molecule](https://molecule.readthedocs.io/).
+You'll just need to install molecule via `pip` and run it.
+Currently the molecule configuration is based on the `docker` driver.
+
+```console
+apt/yum install docker
+systemctl start docker
+pip install docker molecule
+molecule test
+```
+
+## License
 
 Apache
 
-Author Information
-------------------
+## Author Information
 
 This role was created in 2016 by Gaëtan Trellu (goldyfruit).
