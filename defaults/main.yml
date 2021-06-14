@@ -128,3 +128,5 @@ haproxy_docker_sysctls:
 haproxy_docker_ulimits:
   - "nofile:262144:262144"
 # haproxy_docker_volumes: []
+
+haproxy_config_insert_generation_timestamp: True

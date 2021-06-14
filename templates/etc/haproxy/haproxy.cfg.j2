@@ -1,7 +1,9 @@
 #jinja2: lstrip_blocks: True
 #
 # {{ ansible_managed }}
+{% if haproxy_config_insert_generation_timestamp %}
 # generated from the template on {{ ansible_date_time.iso8601 }}
+{% endif %}
 
 {# GLOBAL CONFIGURATION #}
 {% include 'haproxy-global.cfg.j2' %}
