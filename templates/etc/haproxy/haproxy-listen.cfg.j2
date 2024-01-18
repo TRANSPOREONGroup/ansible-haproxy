@@ -68,7 +68,7 @@ listen {{ name }}
     monitor-uri      {{ value.monitor_uri }}
             {% endif %}
             {% if value.http_requests is defined %}
-                {% for http_request in value.http_requests %}
+                {% for http_request in value.http_requests if not ( (ansible_distribution == 'Debian' and ansible_distribution_major_version | int < 11) and (http_request.startswith('replace')) ) %}
     http-request     {{ http_request }}
                 {% endfor %}
             {% endif %}
@@ -103,7 +103,7 @@ listen {{ name }}
     redirect         {{ redirect }}
                 {% endfor %}
             {% endif %}
-            {% if value.reqrep is defined %}
+            {% if value.reqrep is defined and (ansible_distribution == 'Debian' and ansible_distribution_major_version | int < 11) %}
     reqrep           {{ value.reqrep }}
             {% endif %}
             {% if value.retries is defined %}
